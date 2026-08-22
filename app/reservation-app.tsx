@@ -88,6 +88,10 @@ function prettyTime(value: string) {
 function minutes(value: string) { const [h, m] = value.split(":").map(Number); return h * 60 + m; }
 function plusThirty(value: string) { const total = minutes(value) + 30; return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`; }
 function amenityKey(typeId: number, amenityId: number) { return `${typeId}:${amenityId}`; }
+function shortAmenityLabel(label: string) {
+  const trailingNumber = label.match(/(?:court|room|grill|cabana)?\s*#?(\d+)$/i)?.[1];
+  return trailingNumber ? `Court ${trailingNumber}` : label;
+}
 function normalizeTime(value?: string) {
   const match = value?.match(/(?:T|^)(\d{2}):(\d{2})/);
   return match ? `${match[1]}:${match[2]}` : null;
@@ -299,25 +303,29 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
   const selectedWeekday = new Date(`${date}T12:00:00`).getDay();
   const selectedDateIsWeekend = selectedWeekday === 0 || selectedWeekday === 6;
   const selectedDateLabel = new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const amenitySchedule = amenity ? schedule[amenity.label] || {} : {};
   const visibleDates = weekDateValues(weekStart);
-  const weekAvailability = visibleDates.map((value) => {
-    const published = amenitySchedule[value] || {};
-    const hasPublishedAvailability = Object.values(published).some((status) => !status.is_out_of_range);
-    const predicted = value > today && !hasPublishedAvailability && type
-      ? predictedSlots(amenitySchedule, value, type)
-      : null;
-    const prediction = predicted?.slots.length ? predicted : null;
-    return {
-      value,
-      prediction,
-      daySlots: prediction ? Object.fromEntries(prediction.slots.map((slot) => [slot, {}])) : published,
-    };
+  const availabilityByAmenity = amenities.map((option) => {
+    const amenitySchedule = schedule[option.label] || {};
+    const days = visibleDates.map((value) => {
+      const published = amenitySchedule[value] || {};
+      const hasPublishedAvailability = Object.values(published).some((status) => !status.is_out_of_range);
+      const predicted = value > today && !hasPublishedAvailability && type
+        ? predictedSlots(amenitySchedule, value, type)
+        : null;
+      const prediction = predicted?.slots.length ? predicted : null;
+      return {
+        value,
+        prediction,
+        daySlots: prediction ? Object.fromEntries(prediction.slots.map((slot) => [slot, {}])) : published,
+      };
+    });
+    return { amenity: option, days };
   });
-  const selectedDay = weekAvailability.find((day) => day.value === date);
+  const selectedAmenityAvailability = availabilityByAmenity.find((item) => item.amenity.id === amenity?.id);
+  const selectedDay = selectedAmenityAvailability?.days.find((day) => day.value === date);
   const prediction = selectedDay?.prediction || null;
   const autoBookDate = isOutsideBookingWindow(date) || Boolean(prediction);
-  const calendarTimes = Array.from(new Set(weekAvailability.flatMap((day) => Object.keys(day.daySlots)))).sort();
+  const calendarTimes = Array.from(new Set(availabilityByAmenity.flatMap((item) => item.days.flatMap((day) => Object.keys(day.daySlots))))).sort();
   const maxLength = maxReservationMinutes(type?.max_reservation_length);
   function toggleSlot(slot: string) {
     setSlots((current) => {
@@ -337,9 +345,10 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
     const nextDate = addDays(date, amount);
     chooseDate(nextDate < today ? today : nextDate);
   }
-  function chooseCalendarSlot(nextDate: string, slot: string) {
-    if (nextDate !== date) {
+  function chooseCalendarSlot(nextDate: string, slot: string, nextAmenity: Amenity) {
+    if (nextDate !== date || nextAmenity.id !== amenity?.id) {
       setDate(nextDate);
+      setAmenity(nextAmenity);
       setSlots([slot]);
       if (recurrence === "weekdays" && [0, 6].includes(new Date(`${nextDate}T12:00:00`).getDay())) setRecurrence("once");
       return;
@@ -373,7 +382,7 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
       <div className="card card-pad amenity-picker"><h2 className="card-title">Amenities</h2><p className="card-subtitle">Choose a space</p><div className="amenity-list">{loading ? <p>Loading amenities…</p> : types.map((item) => <button className={`amenity-button ${type?.id === item.id ? "active" : ""}`} key={item.id} onClick={() => chooseType(item)}><span><strong>{item.name}</strong><span>{item.description || "View availability"}</span></span><b>›</b></button>)}</div></div>
       <div className="card card-pad schedule-card">
         {!type ? <div className="empty-panel"><div><span className="big-symbol">01</span><strong>Select an amenity</strong><p>Availability will appear here.</p></div></div> : <div className="booking-form">
-          <div className="field"><label>Location</label><select value={amenity?.id || ""} onChange={(e) => { setAmenity(amenities.find((a) => a.id === Number(e.target.value)) || null); setSlots([]); }}>{amenities.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
+          <div className="field wide"><label>Locations</label><div className="location-options" role="group" aria-label="Choose a location">{amenities.map((option) => <button type="button" key={option.id} className={amenity?.id === option.id ? "active" : ""} onClick={() => { setAmenity(option); setSlots([]); }}><span>{option.label}</span><small>Shown in every time slot</small></button>)}</div></div>
           {type.is_allow_guests && <div className="field"><label>Guests</label><select value={guests} onChange={(e) => setGuests(Number(e.target.value))}>{Array.from({ length: (type.max_number_guests || 0) + 1 }, (_, i) => <option key={i}>{i}</option>)}</select></div>}
           <div className="field wide availability-field">
             <div className="schedule-toolbar">
@@ -386,10 +395,10 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
             <div className="calendar-legend" aria-label="Availability legend"><span><i className="open" />Open</span><span><i className="selected" />Selected</span><span><i className="booked" />Booked</span><span><i className="predicted" />Open · predicted</span><span><i className="unavailable" />Unavailable</span></div>
             {calendarTimes.length ? <div className="week-calendar-scroll"><div className="week-calendar" role="grid" aria-label={`Availability for ${weekLabel(weekStart)}`}>
               <div className="calendar-corner" />
-              {weekAvailability.map((day) => { const dayDate = new Date(`${day.value}T12:00:00`); return <button type="button" key={day.value} className={`calendar-day-header ${date === day.value ? "active" : ""} ${day.value === today ? "today" : ""} ${day.value < today ? "past" : ""}`} onClick={() => chooseDate(day.value)} disabled={day.value < today}><span>{dayDate.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{dayDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</strong>{day.prediction ? <small>Auto</small> : null}</button>; })}
+              {visibleDates.map((dayValue) => { const dayDate = new Date(`${dayValue}T12:00:00`); const predicted = availabilityByAmenity.some((item) => item.days.find((day) => day.value === dayValue)?.prediction); return <button type="button" key={dayValue} className={`calendar-day-header ${date === dayValue ? "active" : ""} ${dayValue === today ? "today" : ""} ${dayValue < today ? "past" : ""}`} onClick={() => chooseDate(dayValue)} disabled={dayValue < today}><span>{dayDate.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{dayDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</strong>{predicted ? <small>Auto</small> : null}</button>; })}
               {calendarTimes.map((time) => <div className="calendar-row" key={time}>
                 <div className="calendar-time">{prettyTime(time)}</div>
-                {weekAvailability.map((day) => { const status = day.daySlots[time]; const booked = Boolean(status?.has_reservation); const past = Boolean(status?.is_in_past) || day.value < today; const unavailable = !status || booked || past || Boolean(status?.is_out_of_range); const active = day.value === date && slots.includes(time); const label = `${new Date(`${day.value}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${prettyTime(time)}`; const stateLabel = active ? "Selected" : booked ? "Booked" : past && status ? "Past" : status && !unavailable ? "Open" : ""; const ariaState = booked ? ", booked" : past ? ", in the past" : unavailable ? ", unavailable" : day.prediction ? ", open based on predicted hours" : ", available"; return <button type="button" key={`${day.value}-${time}`} className={`calendar-cell ${!status ? "closed" : ""} ${unavailable ? "unavailable" : ""} ${booked ? "booked" : ""} ${past ? "past" : ""} ${day.prediction ? "predicted" : ""} ${active ? "active" : ""}`} disabled={unavailable} aria-label={`${label}${ariaState}`} onClick={() => chooseCalendarSlot(day.value, time)}><span>{stateLabel}</span></button>; })}
+                {visibleDates.map((dayValue) => <div className={`calendar-cell-group ${dayValue < today ? "past" : ""}`} key={`${dayValue}-${time}`}>{availabilityByAmenity.map((item) => { const day = item.days.find((candidate) => candidate.value === dayValue); const status = day?.daySlots[time]; const booked = Boolean(status?.has_reservation); const past = Boolean(status?.is_in_past) || dayValue < today; const unavailable = !status || booked || past || Boolean(status?.is_out_of_range); const active = item.amenity.id === amenity?.id && dayValue === date && slots.includes(time); const label = `${item.amenity.label}, ${new Date(`${dayValue}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${prettyTime(time)}`; const stateLabel = active ? "Selected" : booked ? "Booked" : past && status ? "Past" : status && !unavailable ? "Open" : "—"; const ariaState = booked ? ", booked" : past ? ", in the past" : unavailable ? ", unavailable" : day?.prediction ? ", open based on predicted hours" : ", available"; return <button type="button" key={item.amenity.id} className={`court-slot ${!status ? "closed" : ""} ${unavailable ? "unavailable" : ""} ${booked ? "booked" : ""} ${past ? "past" : ""} ${day?.prediction ? "predicted" : ""} ${active ? "active" : ""}`} disabled={unavailable} aria-label={`${label}${ariaState}`} onClick={() => chooseCalendarSlot(dayValue, time, item.amenity)}><strong>{shortAmenityLabel(item.amenity.label)}</strong><span>{stateLabel}</span></button>; })}</div>)}
               </div>)}
             </div></div> : <div className="calendar-empty">No hours are available for this week. Try another week or choose a different amenity.</div>}
           </div>
