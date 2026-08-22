@@ -154,6 +154,7 @@ button { color: inherit; }
 .calendar-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .calendar-legend i { width: 10px; height: 10px; border-radius: 3px; background: #f1f0ff; }
 .calendar-legend i.selected { background: var(--accent); }
+.calendar-legend i.booked { border: 1px solid #efcbc7; background: #f9e5e3; }
 .calendar-legend i.predicted { border: 1px dashed #9990e8; background: #faf9ff; }
 .calendar-legend i.unavailable { background: #eeeef1; }
 .week-calendar-scroll { max-height: 560px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: white; }
@@ -177,6 +178,8 @@ button { color: inherit; }
 .calendar-cell.active span { border-color: var(--accent); background: var(--accent); color: white; }
 .calendar-cell.unavailable, .calendar-cell.closed { cursor: not-allowed; }
 .calendar-cell.unavailable span { background: #f3f3f5; }
+.calendar-cell.booked span { border: 1px solid #efcbc7; background: #f9e5e3; color: #9d4841; }
+.calendar-cell.past:not(.booked) span { color: #aaaab1; }
 .calendar-cell.closed span { background: transparent; }
 .calendar-empty { padding: 30px; border: 1px dashed #d8d6e8; border-radius: 12px; color: var(--muted); font-size: 11px; text-align: center; }
 .slot-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(84px,1fr)); gap: 7px; }

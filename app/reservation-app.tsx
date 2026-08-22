@@ -61,8 +61,13 @@ function weekLabel(weekStart: string) {
   const start = new Date(`${weekStart}T12:00:00`);
   const end = new Date(`${addDays(weekStart, 6)}T12:00:00`);
   const startLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const endLabel = end.toLocaleDateString("en-US", { month: start.getMonth() === end.getMonth() ? undefined : "short", day: "numeric", year: "numeric" });
-  return `${startLabel}–${endLabel}`;
+  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+    return `${startLabel}–${end.getDate()}, ${end.getFullYear()}`;
+  }
+  const endLabel = end.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return start.getFullYear() === end.getFullYear()
+    ? `${startLabel}–${endLabel}, ${end.getFullYear()}`
+    : `${startLabel}, ${start.getFullYear()}–${endLabel}, ${end.getFullYear()}`;
 }
 
 function isOutsideBookingWindow(value: string) {
@@ -377,13 +382,13 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
                 <label className="jump-date" htmlFor="booking-date"><span>Jump to date</span><input id="booking-date" type="date" min={today} value={date} onChange={(event) => chooseDate(event.target.value)} /></label>
               </div>
             </div>
-            <div className="calendar-legend" aria-label="Availability legend"><span><i className="open" />Open</span><span><i className="selected" />Selected</span><span><i className="predicted" />Predicted</span><span><i className="unavailable" />Unavailable</span></div>
+            <div className="calendar-legend" aria-label="Availability legend"><span><i className="open" />Open</span><span><i className="selected" />Selected</span><span><i className="booked" />Booked</span><span><i className="predicted" />Predicted</span><span><i className="unavailable" />Unavailable</span></div>
             {calendarTimes.length ? <div className="week-calendar-scroll"><div className="week-calendar" role="grid" aria-label={`Availability for ${weekLabel(weekStart)}`}>
               <div className="calendar-corner" />
               {weekAvailability.map((day) => { const dayDate = new Date(`${day.value}T12:00:00`); return <button type="button" key={day.value} className={`calendar-day-header ${date === day.value ? "active" : ""} ${day.value === today ? "today" : ""}`} onClick={() => chooseDate(day.value)} disabled={day.value < today}><span>{dayDate.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{dayDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</strong>{day.prediction ? <small>Auto</small> : null}</button>; })}
               {calendarTimes.map((time) => <div className="calendar-row" key={time}>
                 <div className="calendar-time">{prettyTime(time)}</div>
-                {weekAvailability.map((day) => { const status = day.daySlots[time]; const unavailable = !status || status.has_reservation || status.is_in_past || status.is_out_of_range || day.value < today; const active = day.value === date && slots.includes(time); const label = `${new Date(`${day.value}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${prettyTime(time)}`; return <button type="button" key={`${day.value}-${time}`} className={`calendar-cell ${!status ? "closed" : ""} ${unavailable ? "unavailable" : ""} ${day.prediction ? "predicted" : ""} ${active ? "active" : ""}`} disabled={unavailable} aria-label={`${label}${unavailable ? ", unavailable" : day.prediction ? ", predicted availability" : ", available"}`} onClick={() => chooseCalendarSlot(day.value, time)}><span>{active ? "Selected" : status && !unavailable ? day.prediction ? "Predicted" : "Open" : ""}</span></button>; })}
+                {weekAvailability.map((day) => { const status = day.daySlots[time]; const booked = Boolean(status?.has_reservation); const past = Boolean(status?.is_in_past) || day.value < today; const unavailable = !status || booked || past || Boolean(status?.is_out_of_range); const active = day.value === date && slots.includes(time); const label = `${new Date(`${day.value}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${prettyTime(time)}`; const stateLabel = active ? "Selected" : booked ? "Booked" : past && status ? "Past" : status && !unavailable ? day.prediction ? "Predicted" : "Open" : ""; const ariaState = booked ? ", booked" : past ? ", in the past" : unavailable ? ", unavailable" : day.prediction ? ", predicted availability" : ", available"; return <button type="button" key={`${day.value}-${time}`} className={`calendar-cell ${!status ? "closed" : ""} ${unavailable ? "unavailable" : ""} ${booked ? "booked" : ""} ${past ? "past" : ""} ${day.prediction ? "predicted" : ""} ${active ? "active" : ""}`} disabled={unavailable} aria-label={`${label}${ariaState}`} onClick={() => chooseCalendarSlot(day.value, time)}><span>{stateLabel}</span></button>; })}
               </div>)}
             </div></div> : <div className="calendar-empty">No hours are available for this week. Try another week or choose a different amenity.</div>}
           </div>
