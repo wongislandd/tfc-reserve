@@ -172,7 +172,7 @@ button { color: inherit; }
 .calendar-row { display: contents; }
 .calendar-time { position: sticky; left: 0; z-index: 3; min-height: 38px; padding: 11px 8px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,.97); color: var(--muted); font-size: 9px; text-align: right; white-space: nowrap; }
 .calendar-cell { min-height: 38px; padding: 6px; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: white; cursor: pointer; }
-.calendar-cell span { min-height: 24px; display: grid; place-items: center; border-radius: 6px; background: #f1f0ff; color: transparent; font-size: 8px; font-weight: 650; }
+.calendar-cell span { min-height: 24px; display: grid; place-items: center; border-radius: 6px; background: #f1f0ff; color: #625b98; font-size: 8px; font-weight: 650; }
 .calendar-cell:hover:not(:disabled) span { background: #e8e5ff; color: var(--accent-dark); }
 .calendar-cell.predicted span { border: 1px dashed #a9a2e9; background: #faf9ff; }
 .calendar-cell.active span { border-color: var(--accent); background: var(--accent); color: white; }
