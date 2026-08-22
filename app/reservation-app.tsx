@@ -370,8 +370,8 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
     <div className="page-heading"><div><span className="section-label">Booking</span><h1>Book an amenity</h1></div><p>Scan the week, or jump to any future date.</p></div>
     {error && <div className="notice error">{error}</div>}
     <div className="booking-layout">
-      <div className="card card-pad"><h2 className="card-title">Amenities</h2><p className="card-subtitle">Choose a space</p><div className="amenity-list">{loading ? <p>Loading amenities…</p> : types.map((item) => <button className={`amenity-button ${type?.id === item.id ? "active" : ""}`} key={item.id} onClick={() => chooseType(item)}><span><strong>{item.name}</strong><span>{item.description || "View availability"}</span></span><b>›</b></button>)}</div></div>
-      <div className="card card-pad">
+      <div className="card card-pad amenity-picker"><h2 className="card-title">Amenities</h2><p className="card-subtitle">Choose a space</p><div className="amenity-list">{loading ? <p>Loading amenities…</p> : types.map((item) => <button className={`amenity-button ${type?.id === item.id ? "active" : ""}`} key={item.id} onClick={() => chooseType(item)}><span><strong>{item.name}</strong><span>{item.description || "View availability"}</span></span><b>›</b></button>)}</div></div>
+      <div className="card card-pad schedule-card">
         {!type ? <div className="empty-panel"><div><span className="big-symbol">01</span><strong>Select an amenity</strong><p>Availability will appear here.</p></div></div> : <div className="booking-form">
           <div className="field"><label>Location</label><select value={amenity?.id || ""} onChange={(e) => { setAmenity(amenities.find((a) => a.id === Number(e.target.value)) || null); setSlots([]); }}>{amenities.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
           {type.is_allow_guests && <div className="field"><label>Guests</label><select value={guests} onChange={(e) => setGuests(Number(e.target.value))}>{Array.from({ length: (type.max_number_guests || 0) + 1 }, (_, i) => <option key={i}>{i}</option>)}</select></div>}

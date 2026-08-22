@@ -115,19 +115,22 @@ button { color: inherit; }
 .topbar p { margin: 0; color: var(--muted); font-size: 12px; }
 .top-action { padding: 8px 12px; border: 1px solid #d9d9dd; border-radius: 8px; background: white; font-size: 11px; font-weight: 600; cursor: pointer; }
 .top-action:hover { border-color: #bcbcc3; }
-.content { width: min(1180px,100%); margin: 0 auto; padding: 42px clamp(24px,4vw,52px) 80px; }
+.content { width: min(1460px,100%); margin: 0 auto; padding: 42px clamp(24px,4vw,52px) 80px; }
 .page-heading { display: flex; justify-content: space-between; align-items: end; gap: 26px; margin-bottom: 30px; }
 .page-heading h1 { margin: 6px 0 0; font-size: clamp(34px,4vw,48px); line-height: 1; letter-spacing: -.045em; font-weight: 620; }
 .page-heading p { max-width: 360px; margin: 0; color: var(--muted); line-height: 1.5; }
 .section-label { color: var(--accent); }
 
 /* Booking */
-.booking-layout { display: grid; grid-template-columns: minmax(260px,.74fr) minmax(450px,1.26fr); gap: 16px; align-items: start; }
+.booking-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; align-items: start; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(20,20,25,.02); }
 .card-pad { padding: 22px; }
+.amenity-picker { padding-bottom: 18px; }
 .card-title { margin: 0 0 5px; font-size: 17px; letter-spacing: -.02em; font-weight: 650; }
 .card-subtitle { margin: 0 0 20px; color: var(--muted); font-size: 12px; line-height: 1.45; }
-.amenity-list { display: grid; gap: 7px; }
+.amenity-picker .card-title, .amenity-picker .card-subtitle { display: inline; }
+.amenity-picker .card-subtitle { margin-left: 8px; }
+.amenity-list { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 15px; }
 .amenity-button { padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 10px; background: white; text-align: left; cursor: pointer; }
 .amenity-button:hover { border-color: #cac8ef; }
 .amenity-button.active { border-color: #bbb5f5; background: var(--soft); }
@@ -236,6 +239,7 @@ button { color: inherit; }
   .app-frame { display: block; padding-bottom: 78px; }
   .sidebar { display: none; }
   .booking-layout { grid-template-columns: 1fr; }
+  .amenity-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .mobile-nav { position: fixed; z-index: 30; left: 12px; right: 12px; bottom: 10px; display: grid; grid-template-columns: repeat(3,1fr); padding: 6px; border: 1px solid #e7e7ea; border-radius: 14px; background: rgba(255,255,255,.94); box-shadow: 0 10px 32px rgba(28,28,33,.14); backdrop-filter: blur(14px); }
   .mobile-nav button { padding: 8px 4px; border: 0; background: transparent; color: var(--muted); font-size: 10px; }
   .mobile-nav button.active { color: var(--accent-dark); font-weight: 650; }
@@ -251,6 +255,7 @@ button { color: inherit; }
   .content { padding: 30px 18px 70px; }
   .page-heading { display: block; }
   .page-heading p { margin-top: 12px; }
+  .amenity-list { grid-template-columns: 1fr; }
   .booking-form { grid-template-columns: 1fr; }
   .booking-form .wide { grid-column: auto; }
   .schedule-toolbar { align-items: stretch; flex-direction: column; }
