@@ -37,6 +37,31 @@ function localDateValue(date = new Date()) {
   return local.toLocaleDateString("en-CA");
 }
 
+function addDays(value: string, amount: number) {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + amount);
+  return localDateValue(date);
+}
+
+function startOfWeek(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  const mondayOffset = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - mondayOffset);
+  return localDateValue(date);
+}
+
+function weekDateValues(weekStart: string) {
+  return Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+}
+
+function weekLabel(weekStart: string) {
+  const start = new Date(`${weekStart}T12:00:00`);
+  const end = new Date(`${addDays(weekStart, 6)}T12:00:00`);
+  const startLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const endLabel = end.toLocaleDateString("en-US", { month: start.getMonth() === end.getMonth() ? undefined : "short", day: "numeric", year: "numeric" });
+  return `${startLabel}–${endLabel}`;
+}
+
 function isOutsideBookingWindow(value: string) {
   const bookingDate = new Date(`${value}T12:00:00`);
   const windowEnd = new Date();
@@ -241,6 +266,7 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
   const [amenity, setAmenity] = useState<Amenity | null>(null);
   const [schedule, setSchedule] = useState<Schedule>({});
   const [date, setDate] = useState(today);
+  const [weekStart, setWeekStart] = useState(startOfWeek(today));
   const [slots, setSlots] = useState<string[]>([]);
   const [guests, setGuests] = useState(0);
   const [recurrence, setRecurrence] = useState<Recurrence>("once");
@@ -258,14 +284,22 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
   const selectedDateLabel = new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const autoBookDate = isOutsideBookingWindow(date);
   const amenitySchedule = amenity ? schedule[amenity.label] || {} : {};
-  const publishedDaySlots = amenitySchedule[date] || {};
-  const prediction = autoBookDate && Object.keys(publishedDaySlots).length === 0 && type
-    ? predictedSlots(amenitySchedule, date, type)
-    : null;
-  const daySlots: Record<string, SlotStatus> = prediction
-    ? Object.fromEntries(prediction.slots.map((slot) => [slot, {}]))
-    : publishedDaySlots;
-  const slotKeys = Object.keys(daySlots).sort();
+  const visibleDates = weekDateValues(weekStart);
+  const weekAvailability = visibleDates.map((value) => {
+    const published = amenitySchedule[value] || {};
+    const hasPublishedAvailability = Object.values(published).some((status) => !status.is_out_of_range);
+    const prediction = isOutsideBookingWindow(value) && !hasPublishedAvailability && type
+      ? predictedSlots(amenitySchedule, value, type)
+      : null;
+    return {
+      value,
+      prediction,
+      daySlots: prediction ? Object.fromEntries(prediction.slots.map((slot) => [slot, {}])) : published,
+    };
+  });
+  const selectedDay = weekAvailability.find((day) => day.value === date);
+  const prediction = selectedDay?.prediction || null;
+  const calendarTimes = Array.from(new Set(weekAvailability.flatMap((day) => Object.keys(day.daySlots)))).sort();
   const maxLength = maxReservationMinutes(type?.max_reservation_length);
   function toggleSlot(slot: string) {
     setSlots((current) => {
@@ -273,6 +307,26 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
       if (current.length === 1 && maxLength >= 60 && Math.abs(minutes(slot) - minutes(current[0])) === 30) return [...current, slot].sort();
       return [slot];
     });
+  }
+  function chooseDate(nextDate: string) {
+    if (!nextDate || nextDate < today) return;
+    setDate(nextDate);
+    setWeekStart(startOfWeek(nextDate));
+    setSlots([]);
+    if (recurrence === "weekdays" && [0, 6].includes(new Date(`${nextDate}T12:00:00`).getDay())) setRecurrence("once");
+  }
+  function moveWeek(amount: number) {
+    const nextDate = addDays(date, amount);
+    chooseDate(nextDate < today ? today : nextDate);
+  }
+  function chooseCalendarSlot(nextDate: string, slot: string) {
+    if (nextDate !== date) {
+      setDate(nextDate);
+      setSlots([slot]);
+      if (recurrence === "weekdays" && [0, 6].includes(new Date(`${nextDate}T12:00:00`).getDay())) setRecurrence("once");
+      return;
+    }
+    toggleSlot(slot);
   }
   async function submit() {
     if (!type || !amenity || slots.length === 0) return;
@@ -295,7 +349,7 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
   }
 
   return <>
-    <div className="page-heading"><div><span className="section-label">Booking</span><h1>Book an amenity</h1></div><p>Select an amenity, date, and available time.</p></div>
+    <div className="page-heading"><div><span className="section-label">Booking</span><h1>Book an amenity</h1></div><p>Scan the week, or jump to any future date.</p></div>
     {error && <div className="notice error">{error}</div>}
     <div className="booking-layout">
       <div className="card card-pad"><h2 className="card-title">Amenities</h2><p className="card-subtitle">Choose a space</p><div className="amenity-list">{loading ? <p>Loading amenities…</p> : types.map((item) => <button className={`amenity-button ${type?.id === item.id ? "active" : ""}`} key={item.id} onClick={() => chooseType(item)}><span><strong>{item.name}</strong><span>{item.description || "View availability"}</span></span><b>›</b></button>)}</div></div>
@@ -303,17 +357,30 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
         {!type ? <div className="empty-panel"><div><span className="big-symbol">01</span><strong>Select an amenity</strong><p>Availability will appear here.</p></div></div> : <div className="booking-form">
           <div className="field"><label>Location</label><select value={amenity?.id || ""} onChange={(e) => { setAmenity(amenities.find((a) => a.id === Number(e.target.value)) || null); setSlots([]); }}>{amenities.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
           {type.is_allow_guests && <div className="field"><label>Guests</label><select value={guests} onChange={(e) => setGuests(Number(e.target.value))}>{Array.from({ length: (type.max_number_guests || 0) + 1 }, (_, i) => <option key={i}>{i}</option>)}</select></div>}
-          <div className="field wide"><label htmlFor="booking-date">Date</label><div className="calendar-picker"><input id="booking-date" type="date" min={today} value={date} onChange={(event) => { const nextDate = event.target.value; if (!nextDate || nextDate < today) return; setDate(nextDate); setSlots([]); if (recurrence === "weekdays" && [0, 6].includes(new Date(`${nextDate}T12:00:00`).getDay())) setRecurrence("once"); }} /><div className="calendar-selection"><span>{autoBookDate ? "Auto-book" : "Current window"}</span><strong>{selectedDateLabel}</strong><small>{autoBookDate ? "Choose any future date. We’ll queue it now and begin trying seven days before." : "This date is inside Portico’s current seven-day booking window."}</small></div></div></div>
+          <div className="field wide availability-field">
+            <div className="schedule-toolbar">
+              <div><span>Availability</span><strong>{weekLabel(weekStart)}</strong></div>
+              <div className="schedule-actions">
+                <div className="week-nav"><button type="button" aria-label="Previous week" disabled={weekStart <= startOfWeek(today)} onClick={() => moveWeek(-7)}>‹</button><button type="button" onClick={() => chooseDate(today)}>Today</button><button type="button" aria-label="Next week" onClick={() => moveWeek(7)}>›</button></div>
+                <label className="jump-date" htmlFor="booking-date"><span>Jump to date</span><input id="booking-date" type="date" min={today} value={date} onChange={(event) => chooseDate(event.target.value)} /></label>
+              </div>
+            </div>
+            <div className="calendar-legend" aria-label="Availability legend"><span><i className="open" />Open</span><span><i className="selected" />Selected</span><span><i className="predicted" />Predicted</span><span><i className="unavailable" />Unavailable</span></div>
+            {calendarTimes.length ? <div className="week-calendar-scroll"><div className="week-calendar" role="grid" aria-label={`Availability for ${weekLabel(weekStart)}`}>
+              <div className="calendar-corner" />
+              {weekAvailability.map((day) => { const dayDate = new Date(`${day.value}T12:00:00`); return <button type="button" key={day.value} className={`calendar-day-header ${date === day.value ? "active" : ""} ${day.value === today ? "today" : ""}`} onClick={() => chooseDate(day.value)} disabled={day.value < today}><span>{dayDate.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{dayDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</strong>{day.prediction ? <small>Auto</small> : null}</button>; })}
+              {calendarTimes.map((time) => <div className="calendar-row" key={time}>
+                <div className="calendar-time">{prettyTime(time)}</div>
+                {weekAvailability.map((day) => { const status = day.daySlots[time]; const unavailable = !status || status.has_reservation || status.is_in_past || status.is_out_of_range || day.value < today; const active = day.value === date && slots.includes(time); const label = `${new Date(`${day.value}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${prettyTime(time)}`; return <button type="button" key={`${day.value}-${time}`} className={`calendar-cell ${!status ? "closed" : ""} ${unavailable ? "unavailable" : ""} ${day.prediction ? "predicted" : ""} ${active ? "active" : ""}`} disabled={unavailable} aria-label={`${label}${unavailable ? ", unavailable" : day.prediction ? ", predicted availability" : ", available"}`} onClick={() => chooseCalendarSlot(day.value, time)}><span>{active ? "Selected" : status && !unavailable ? day.prediction ? "Predicted" : "Open" : ""}</span></button>; })}
+              </div>)}
+            </div></div> : <div className="calendar-empty">No hours are available for this week. Try another week or choose a different amenity.</div>}
+          </div>
           <div className="field"><label htmlFor="recurrence">Repeat</label><select id="recurrence" value={recurrence} onChange={(e) => setRecurrence(e.target.value as Recurrence)}><option value="once">Does not repeat</option><option value="daily">Every day</option><option value="weekdays" disabled={selectedDateIsWeekend}>Every weekday</option><option value="weekly">Every week</option></select></div>
           {recurrence !== "once" ? <div className="field"><label htmlFor="occurrences">Occurrences</label><select id="occurrences" value={occurrenceCount} onChange={(e) => setOccurrenceCount(Number(e.target.value))}>{[2, 4, 6, 8, 12].map((count) => <option value={count} key={count}>{count} bookings</option>)}</select></div> : <div className="recurrence-help"><strong>Optional series</strong><span>Repeat this date and time daily, on weekdays, or weekly.</span></div>}
-          <div className="field wide">
-            <label>Time</label>
-            {prediction?.slots.length ? <div className="prediction-note"><strong>Predicted schedule</strong><span>Portico has not published this date yet. {prediction.note} Choose a target time and we’ll try to reserve it when the booking window opens.</span></div> : null}
-            {slotKeys.length ? <div className="slot-grid">{slotKeys.map((slot) => { const status = daySlots[slot]; const unavailable = status.has_reservation || status.is_in_past || status.is_out_of_range; return <button key={slot} className={`slot ${prediction ? "predicted" : ""} ${slots.includes(slot) ? "active" : ""}`} disabled={unavailable} onClick={() => toggleSlot(slot)}>{prettyTime(slot)}</button>; })}</div> : <p className="card-subtitle">{autoBookDate ? "We could not infer this amenity’s opening hours yet." : "No times are published for this date yet."}</p>}
-          </div>
+          {prediction?.slots.length ? <div className="prediction-note wide"><strong>Predicted schedule for {selectedDateLabel}</strong><span>Portico has not published this date yet. {prediction.note} We’ll queue your selection now and begin trying seven days before.</span></div> : null}
           {(autoBookDate || recurrence !== "once") && slots.length > 1 && <div className="hold-note wide"><strong>First-slot hold</strong><span>For each date, we’ll reserve {prettyTime(slots[0])} as soon as it opens. When {prettyTime(slots[1])} opens, we’ll cancel that hold and immediately reserve the full {prettyTime(slots[0])}–{prettyTime(plusThirty(slots[1]))} range.</span></div>}
           {type.rules && <div className="form-rule wide"><span className="rule-check" aria-hidden="true">✓</span><span>The {type.name} reservation rules are accepted automatically when you book.</span></div>}
-          <div className="booking-summary wide"><div><small>Your selection</small><strong>{amenity?.label || "Choose a location"}{slots.length ? ` · ${prettyTime(slots[0])}–${prettyTime(plusThirty(slots[slots.length - 1]))}` : ""}{recurrence !== "once" ? ` · ${recurrenceLabel(recurrence)} × ${occurrenceCount}` : ""}</strong></div><button className="primary-button" disabled={busy || !amenity || slots.length === 0} onClick={submit}>{busy ? "Reserving…" : recurrence !== "once" ? "Queue series" : autoBookDate ? "Queue auto-book" : "Reserve now"}</button></div>
+          <div className="booking-summary wide"><div><small>Your selection</small><strong>{amenity?.label || "Choose a location"}{slots.length ? ` · ${new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${prettyTime(slots[0])}–${prettyTime(plusThirty(slots[slots.length - 1]))}` : ""}{recurrence !== "once" ? ` · ${recurrenceLabel(recurrence)} × ${occurrenceCount}` : ""}</strong></div><button className="primary-button" disabled={busy || !amenity || slots.length === 0} onClick={submit}>{busy ? "Reserving…" : recurrence !== "once" ? "Queue series" : autoBookDate ? "Queue auto-book" : "Reserve now"}</button></div>
         </div>}
       </div>
     </div>

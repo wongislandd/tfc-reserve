@@ -136,13 +136,49 @@ button { color: inherit; }
 .amenity-button b { color: #a0a0a7; font-size: 17px; font-weight: 400; }
 .booking-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .booking-form .wide { grid-column: 1 / -1; }
-.calendar-picker { display: grid; grid-template-columns: minmax(180px,.75fr) minmax(240px,1.25fr); gap: 9px; align-items: stretch; }
-.calendar-picker > input { min-height: 72px; padding: 0 16px; color: var(--ink); font-size: 15px; font-weight: 620; cursor: pointer; color-scheme: light; }
-.calendar-picker > input::-webkit-calendar-picker-indicator { width: 20px; height: 20px; cursor: pointer; opacity: .62; }
-.calendar-selection { min-height: 72px; padding: 12px 14px; display: grid; align-content: center; gap: 2px; border: 1px solid #dedaff; border-radius: 10px; background: #f6f5ff; }
-.calendar-selection span { color: var(--accent); font-size: 9px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
-.calendar-selection strong { font-size: 12px; }
-.calendar-selection small { color: #716c91; font-size: 10px; line-height: 1.4; }
+.availability-field { min-width: 0; }
+.schedule-toolbar { display: flex; justify-content: space-between; align-items: end; gap: 14px; margin-bottom: 10px; }
+.schedule-toolbar > div:first-child { display: grid; gap: 3px; }
+.schedule-toolbar > div:first-child span, .jump-date span { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.schedule-toolbar > div:first-child strong { font-size: 16px; letter-spacing: -.02em; }
+.schedule-actions { display: flex; align-items: end; gap: 8px; }
+.week-nav { display: flex; }
+.week-nav button { min-width: 34px; min-height: 34px; padding: 0 10px; border: 1px solid #d9d9de; border-right-width: 0; background: white; font-size: 11px; cursor: pointer; }
+.week-nav button:first-child { border-radius: 8px 0 0 8px; font-size: 18px; }
+.week-nav button:last-child { border-right-width: 1px; border-radius: 0 8px 8px 0; font-size: 18px; }
+.week-nav button:hover:not(:disabled) { background: #f7f7f9; }
+.week-nav button:disabled { color: #c2c2c8; cursor: not-allowed; }
+.jump-date { display: grid; gap: 4px; }
+.jump-date input { min-height: 34px; width: 145px; padding: 0 9px; border: 1px solid #d9d9de; border-radius: 8px; background: white; font-size: 11px; cursor: pointer; color-scheme: light; }
+.calendar-legend { margin: 8px 0 10px; display: flex; flex-wrap: wrap; gap: 13px; color: var(--muted); font-size: 9px; }
+.calendar-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.calendar-legend i { width: 10px; height: 10px; border-radius: 3px; background: #f1f0ff; }
+.calendar-legend i.selected { background: var(--accent); }
+.calendar-legend i.predicted { border: 1px dashed #9990e8; background: #faf9ff; }
+.calendar-legend i.unavailable { background: #eeeef1; }
+.week-calendar-scroll { max-height: 560px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: white; }
+.week-calendar { min-width: 780px; display: grid; grid-template-columns: 78px repeat(7,minmax(96px,1fr)); }
+.calendar-corner, .calendar-day-header { position: sticky; top: 0; z-index: 4; min-height: 58px; border: 0; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.96); backdrop-filter: blur(10px); }
+.calendar-corner { left: 0; z-index: 6; border-right: 1px solid var(--line); }
+.calendar-day-header { padding: 8px 5px; border-right: 1px solid var(--line); cursor: pointer; }
+.calendar-day-header span, .calendar-day-header small { display: block; color: var(--muted); font-size: 8px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.calendar-day-header strong { display: block; margin: 2px 0; font-size: 11px; }
+.calendar-day-header small { color: var(--accent); }
+.calendar-day-header:hover:not(:disabled) { background: #fafaff; }
+.calendar-day-header.active { background: #f3f2ff; color: var(--accent-dark); }
+.calendar-day-header.today strong::after { content: ""; display: inline-block; width: 4px; height: 4px; margin: 0 0 2px 5px; border-radius: 50%; background: var(--accent); }
+.calendar-day-header:disabled { color: #b8b8bf; cursor: not-allowed; }
+.calendar-row { display: contents; }
+.calendar-time { position: sticky; left: 0; z-index: 3; min-height: 38px; padding: 11px 8px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,.97); color: var(--muted); font-size: 9px; text-align: right; white-space: nowrap; }
+.calendar-cell { min-height: 38px; padding: 6px; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: white; cursor: pointer; }
+.calendar-cell span { min-height: 24px; display: grid; place-items: center; border-radius: 6px; background: #f1f0ff; color: transparent; font-size: 8px; font-weight: 650; }
+.calendar-cell:hover:not(:disabled) span { background: #e8e5ff; color: var(--accent-dark); }
+.calendar-cell.predicted span { border: 1px dashed #a9a2e9; background: #faf9ff; }
+.calendar-cell.active span { border-color: var(--accent); background: var(--accent); color: white; }
+.calendar-cell.unavailable, .calendar-cell.closed { cursor: not-allowed; }
+.calendar-cell.unavailable span { background: #f3f3f5; }
+.calendar-cell.closed span { background: transparent; }
+.calendar-empty { padding: 30px; border: 1px dashed #d8d6e8; border-radius: 12px; color: var(--muted); font-size: 11px; text-align: center; }
 .slot-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(84px,1fr)); gap: 7px; }
 .slot { padding: 9px 6px; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 11px; cursor: pointer; }
 .slot:hover:not(:disabled) { border-color: #bdb7f4; }
@@ -209,7 +245,9 @@ button { color: inherit; }
   .page-heading p { margin-top: 12px; }
   .booking-form { grid-template-columns: 1fr; }
   .booking-form .wide { grid-column: auto; }
-  .calendar-picker { grid-template-columns: 1fr; }
+  .schedule-toolbar { align-items: stretch; flex-direction: column; }
+  .schedule-actions { justify-content: space-between; }
+  .jump-date { margin-left: auto; }
   .reservation-grid { grid-template-columns: 1fr; }
   .reservation-card { grid-template-columns: 52px 1fr; }
   .reservation-card > button, .reservation-card > .badge, .reservation-card > .card-actions { grid-column: 2; justify-self: start; }
