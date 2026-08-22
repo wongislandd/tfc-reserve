@@ -299,15 +299,15 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
   const selectedWeekday = new Date(`${date}T12:00:00`).getDay();
   const selectedDateIsWeekend = selectedWeekday === 0 || selectedWeekday === 6;
   const selectedDateLabel = new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const autoBookDate = isOutsideBookingWindow(date);
   const amenitySchedule = amenity ? schedule[amenity.label] || {} : {};
   const visibleDates = weekDateValues(weekStart);
   const weekAvailability = visibleDates.map((value) => {
     const published = amenitySchedule[value] || {};
     const hasPublishedAvailability = Object.values(published).some((status) => !status.is_out_of_range);
-    const prediction = isOutsideBookingWindow(value) && !hasPublishedAvailability && type
+    const predicted = value > today && !hasPublishedAvailability && type
       ? predictedSlots(amenitySchedule, value, type)
       : null;
+    const prediction = predicted?.slots.length ? predicted : null;
     return {
       value,
       prediction,
@@ -316,6 +316,7 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
   });
   const selectedDay = weekAvailability.find((day) => day.value === date);
   const prediction = selectedDay?.prediction || null;
+  const autoBookDate = isOutsideBookingWindow(date) || Boolean(prediction);
   const calendarTimes = Array.from(new Set(weekAvailability.flatMap((day) => Object.keys(day.daySlots)))).sort();
   const maxLength = maxReservationMinutes(type?.max_reservation_length);
   function toggleSlot(slot: string) {
