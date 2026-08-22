@@ -12,16 +12,37 @@ const apiBase = () => {
 
 export async function GET() {
   const jar = await cookies();
+  const deviceId = jar.get(COOKIE)?.value;
   let serviceAvailable = false;
+  let authenticated = false;
+  let verifiedDisplayName: string | null = null;
+  let clearStaleSession = false;
   try {
-    const health = await fetch(apiBase(), { method: "OPTIONS", signal: AbortSignal.timeout(2500) });
-    serviceAvailable = health.ok;
+    const upstream = deviceId
+      ? await fetch(`${apiBase()}/session`, {
+          headers: { "x-tfc-device-id": deviceId },
+          signal: AbortSignal.timeout(5000),
+        })
+      : await fetch(apiBase(), { method: "OPTIONS", signal: AbortSignal.timeout(2500) });
+    serviceAvailable = upstream.status < 500;
+    if (deviceId && upstream.ok) {
+      const session = await upstream.json() as { authenticated?: boolean; display_name?: string | null };
+      authenticated = session.authenticated === true;
+      verifiedDisplayName = session.display_name ?? null;
+    } else if (deviceId && upstream.status === 401) {
+      clearStaleSession = true;
+    }
   } catch { /* Report the service unavailable when the backend cannot be reached. */ }
-  return NextResponse.json({
-    authenticated: serviceAvailable && Boolean(jar.get(COOKIE)?.value),
-    displayName: jar.get(NAME_COOKIE)?.value || null,
+  const response = NextResponse.json({
+    authenticated,
+    displayName: verifiedDisplayName || jar.get(NAME_COOKIE)?.value || null,
     serviceAvailable,
   });
+  if (clearStaleSession) {
+    response.cookies.delete(COOKIE);
+    response.cookies.delete(NAME_COOKIE);
+  }
+  return response;
 }
 
 export async function POST(request: NextRequest) {

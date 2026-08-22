@@ -27,6 +27,9 @@ const api = async (path: string, init?: RequestInit) => {
   const response = await fetch(`/api/reservations/${path}`, init);
   const text = await response.text();
   const body = text ? (() => { try { return JSON.parse(text); } catch { return { error: text }; } })() : {};
+  if (response.status === 401 && body.needs_login && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("tfc-session-expired"));
+  }
   if (!response.ok) throw new Error(body.error || body.detail || `Request failed (${response.status})`);
   return body;
 };
@@ -143,6 +146,15 @@ export default function ReservationApp() {
       setServiceOffline(d.serviceAvailable === false);
       if (d.displayName) setDisplayName(d.displayName);
     }).finally(() => setChecking(false));
+  }, []);
+
+  useEffect(() => {
+    const handleExpiredSession = () => {
+      setSignedIn(false);
+      setDisplayName("Resident");
+    };
+    window.addEventListener("tfc-session-expired", handleExpiredSession);
+    return () => window.removeEventListener("tfc-session-expired", handleExpiredSession);
   }, []);
 
   if (checking) return <div className="loading-screen"><div className="loading-mark">R</div></div>;
