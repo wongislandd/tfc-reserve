@@ -308,15 +308,28 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
     const amenitySchedule = schedule[option.label] || {};
     const days = visibleDates.map((value) => {
       const published = amenitySchedule[value] || {};
-      const hasPublishedAvailability = Object.values(published).some((status) => !status.is_out_of_range);
-      const predicted = value > today && !hasPublishedAvailability && type
+      const publishedTimes = Object.entries(published)
+        .filter(([, status]) => !status.is_out_of_range)
+        .map(([time]) => time)
+        .sort();
+      const latestPublishedTime = publishedTimes.at(-1) || null;
+      const expected = value > today && type
         ? predictedSlots(amenitySchedule, value, type)
         : null;
-      const prediction = predicted?.slots.length ? predicted : null;
+      const unpublishedExpectedSlots = expected?.slots.filter((slot) => (
+        !published[slot]
+        && (!latestPublishedTime || minutes(slot) > minutes(latestPublishedTime))
+      )) || [];
+      const prediction = unpublishedExpectedSlots.length && expected
+        ? { ...expected, slots: unpublishedExpectedSlots }
+        : null;
       return {
         value,
         prediction,
-        daySlots: prediction ? Object.fromEntries(prediction.slots.map((slot) => [slot, {}])) : published,
+        daySlots: {
+          ...Object.fromEntries(unpublishedExpectedSlots.map((slot) => [slot, {}])),
+          ...published,
+        },
       };
     });
     return { amenity: option, days };
@@ -324,7 +337,8 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
   const selectedAmenityAvailability = availabilityByAmenity.find((item) => item.amenity.id === amenity?.id);
   const selectedDay = selectedAmenityAvailability?.days.find((day) => day.value === date);
   const prediction = selectedDay?.prediction || null;
-  const autoBookDate = isOutsideBookingWindow(date) || Boolean(prediction);
+  const selectionIncludesPrediction = slots.some((slot) => prediction?.slots.includes(slot));
+  const autoBookDate = isOutsideBookingWindow(date) || selectionIncludesPrediction;
   const calendarTimes = Array.from(new Set(availabilityByAmenity.flatMap((item) => item.days.flatMap((day) => Object.keys(day.daySlots))))).sort();
   const maxLength = maxReservationMinutes(type?.max_reservation_length);
   function toggleSlot(slot: string) {
@@ -397,13 +411,13 @@ function BookView({ types, loading, onBooked }: { types: AmenityType[]; loading:
               {visibleDates.map((dayValue) => { const dayDate = new Date(`${dayValue}T12:00:00`); const predicted = availabilityByAmenity.some((item) => item.days.find((day) => day.value === dayValue)?.prediction); return <button type="button" key={dayValue} className={`calendar-day-header ${date === dayValue ? "active" : ""} ${dayValue === today ? "today" : ""} ${dayValue < today ? "past" : ""}`} onClick={() => chooseDate(dayValue)} disabled={dayValue < today}><span>{dayDate.toLocaleDateString("en-US", { weekday: "short" })}</span><strong>{dayDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</strong>{predicted ? <small>Auto</small> : null}</button>; })}
               {calendarTimes.map((time) => <div className="calendar-row" key={time}>
                 <div className="calendar-time">{prettyTime(time)}</div>
-                {visibleDates.map((dayValue) => <div className={`calendar-cell-group ${dayValue < today ? "past" : ""}`} key={`${dayValue}-${time}`}>{availabilityByAmenity.map((item) => { const day = item.days.find((candidate) => candidate.value === dayValue); const status = day?.daySlots[time]; const booked = Boolean(status?.has_reservation); const past = Boolean(status?.is_in_past) || dayValue < today; const unavailable = !status || booked || past || Boolean(status?.is_out_of_range); const active = item.amenity.id === amenity?.id && dayValue === date && slots.includes(time); const label = `${item.amenity.label}, ${new Date(`${dayValue}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${prettyTime(time)}`; const stateLabel = active ? "Selected" : booked ? "Booked" : past && status ? "Past" : status && !unavailable ? "Open" : "—"; const ariaState = booked ? ", booked" : past ? ", in the past" : unavailable ? ", unavailable" : day?.prediction ? ", open based on predicted hours" : ", available"; return <button type="button" key={item.amenity.id} className={`court-slot ${!status ? "closed" : ""} ${unavailable ? "unavailable" : ""} ${booked ? "booked" : ""} ${past ? "past" : ""} ${day?.prediction ? "predicted" : ""} ${active ? "active" : ""}`} disabled={unavailable} aria-label={`${label}${ariaState}`} onClick={() => chooseCalendarSlot(dayValue, time, item.amenity)}><strong>{shortAmenityLabel(item.amenity.label)}</strong><span>{stateLabel}</span></button>; })}</div>)}
+                {visibleDates.map((dayValue) => <div className={`calendar-cell-group ${dayValue < today ? "past" : ""}`} key={`${dayValue}-${time}`}>{availabilityByAmenity.map((item) => { const day = item.days.find((candidate) => candidate.value === dayValue); const status = day?.daySlots[time]; const predictedSlot = Boolean(day?.prediction?.slots.includes(time)); const booked = Boolean(status?.has_reservation); const past = Boolean(status?.is_in_past) || dayValue < today; const unavailable = !status || booked || past || Boolean(status?.is_out_of_range); const active = item.amenity.id === amenity?.id && dayValue === date && slots.includes(time); const label = `${item.amenity.label}, ${new Date(`${dayValue}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${prettyTime(time)}`; const stateLabel = active ? "Selected" : booked ? "Booked" : past && status ? "Past" : status && !unavailable ? "Open" : "—"; const ariaState = booked ? ", booked" : past ? ", in the past" : unavailable ? ", unavailable" : predictedSlot ? ", open based on predicted hours" : ", available"; return <button type="button" key={item.amenity.id} className={`court-slot ${!status ? "closed" : ""} ${unavailable ? "unavailable" : ""} ${booked ? "booked" : ""} ${past ? "past" : ""} ${predictedSlot ? "predicted" : ""} ${active ? "active" : ""}`} disabled={unavailable} aria-label={`${label}${ariaState}`} onClick={() => chooseCalendarSlot(dayValue, time, item.amenity)}><strong>{shortAmenityLabel(item.amenity.label)}</strong><span>{stateLabel}</span></button>; })}</div>)}
               </div>)}
             </div></div> : <div className="calendar-empty">No hours are available for this week. Try another week or choose a different amenity.</div>}
           </div>
           <div className="field"><label htmlFor="recurrence">Repeat</label><select id="recurrence" value={recurrence} onChange={(e) => setRecurrence(e.target.value as Recurrence)}><option value="once">Does not repeat</option><option value="daily">Every day</option><option value="weekdays" disabled={selectedDateIsWeekend}>Every weekday</option><option value="weekly">Every week</option></select></div>
           {recurrence !== "once" ? <div className="field"><label htmlFor="occurrences">Occurrences</label><select id="occurrences" value={occurrenceCount} onChange={(e) => setOccurrenceCount(Number(e.target.value))}>{[2, 4, 6, 8, 12].map((count) => <option value={count} key={count}>{count} bookings</option>)}</select></div> : <div className="recurrence-help"><strong>Optional series</strong><span>Repeat this date and time daily, on weekdays, or weekly.</span></div>}
-          {prediction?.slots.length ? <div className="prediction-note wide"><strong>Predicted schedule for {selectedDateLabel}</strong><span>Portico has not published this date yet. {prediction.note} We’ll queue your selection now and begin trying seven days before.</span></div> : null}
+          {selectionIncludesPrediction && prediction?.slots.length ? <div className="prediction-note wide"><strong>Unpublished time on {selectedDateLabel}</strong><span>Portico has not published this time yet. {prediction.note} We’ll queue it now and try automatically as the slot rolls out.</span></div> : null}
           {(autoBookDate || recurrence !== "once") && slots.length > 1 && <div className="hold-note wide"><strong>First-slot hold</strong><span>For each date, we’ll reserve {prettyTime(slots[0])} as soon as it opens. When {prettyTime(slots[1])} opens, we’ll cancel that hold and immediately reserve the full {prettyTime(slots[0])}–{prettyTime(plusThirty(slots[1]))} range.</span></div>}
           {type.rules && <div className="form-rule wide"><span className="rule-check" aria-hidden="true">✓</span><span>The {type.name} reservation rules are accepted automatically when you book.</span></div>}
           <div className="booking-summary wide"><div><small>Your selection</small><strong>{amenity?.label || "Choose a location"}{slots.length ? ` · ${new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${prettyTime(slots[0])}–${prettyTime(plusThirty(slots[slots.length - 1]))}` : ""}{recurrence !== "once" ? ` · ${recurrenceLabel(recurrence)} × ${occurrenceCount}` : ""}</strong></div><button className="primary-button" disabled={busy || !amenity || slots.length === 0} onClick={submit}>{busy ? "Reserving…" : recurrence !== "once" ? "Queue series" : autoBookDate ? "Queue auto-book" : "Reserve now"}</button></div>
