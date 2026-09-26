@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import FlexibleFields from "./flexible-fields";
+import SearchActivity, { type SearchEvent } from "./search-activity";
 import { appPath } from "./app-path";
 import { buildDayAvailability, queuedSlotTimes, slotIsPast, type SlotStatus } from "./slot-availability";
 import { sortScheduledBookings } from "./scheduled-bookings";
@@ -25,7 +26,7 @@ type AmenityType = {
 type Amenity = { id: number; label: string; is_active: boolean };
 type Schedule = Record<string, Record<string, Record<string, SlotStatus>>>;
 type Reservation = { id: number; amenity?: { label?: string }; start_time: string; end_time: string; guests?: number; is_cancelled?: boolean };
-type Scheduled = { flexible_preferences?: FlexiblePreferences | null; monitor_state?: string | null; last_checked_at?: string | null; booked_start_time?: string | null; booked_end_time?: string | null; booked_amenity_label?: string | null; booking_intent?: unknown; id: string; booking_date: string; start_time: string; end_time: string; status: string; error_message?: string | null; amenity_type_id: number; amenity_id: number; amenity_label?: string | null; release_time?: string | null; held_reservation_id?: string | null; held_start_time?: string | null; held_end_time?: string | null; recurrence_group_id?: string | null; recurrence_frequency?: Exclude<Recurrence, "once"> | null; recurrence_occurrence_index?: number | null; recurrence_occurrence_count?: number | null };
+type Scheduled = { activity_log?: SearchEvent[]; flexible_preferences?: FlexiblePreferences | null; monitor_state?: string | null; last_checked_at?: string | null; booked_start_time?: string | null; booked_end_time?: string | null; booked_amenity_label?: string | null; booking_intent?: unknown; id: string; booking_date: string; start_time: string; end_time: string; status: string; error_message?: string | null; amenity_type_id: number; amenity_id: number; amenity_label?: string | null; release_time?: string | null; held_reservation_id?: string | null; held_start_time?: string | null; held_end_time?: string | null; recurrence_group_id?: string | null; recurrence_frequency?: Exclude<Recurrence, "once"> | null; recurrence_occurrence_index?: number | null; recurrence_occurrence_count?: number | null };
 
 const api = async (path: string, init?: RequestInit) => {
   const response = await fetch(appPath(`/api/reservations/${path}`), init);
@@ -473,6 +474,7 @@ function ScheduledView({ items, types, amenityLabels, loading, onUpdated, onCanc
           {item.status !== "pending" && !item.flexible_preferences && <button className="danger-button" disabled={working !== null} title="Remove this queue entry. Confirmed reservations remain unchanged." onClick={() => void stop(item.id, "occurrence")}>Remove</button>}
           {item.status !== "success" && !item.held_reservation_id && !item.booking_intent && (item.flexible_preferences || item.status === "failed") && item.booking_date >= newYorkDate() && <button className="quiet-button" onClick={() => setEditing(item)}>{item.flexible_preferences ? "Edit search" : "Find another time"}</button>}
         </div>
+        {item.flexible_preferences && <SearchActivity events={item.activity_log} />}
       </article>;
     })}</div> : <div className="card empty-panel"><div><span className="big-symbol">00</span><strong>No scheduled bookings</strong><p>Future booking requests will appear here.</p></div></div>}
   </>;

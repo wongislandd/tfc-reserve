@@ -6,7 +6,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     test("configure a booked preference, then recover and stop a failed request", async ({ page }) => {
       await page.clock.setFixedTime(new Date("2026-09-26T12:00:00-04:00"));
       const preferences = { version: 1, window_start: "11:00", window_end: "18:00", notice_minutes: 120, preference: "earliest", amenity_ids: [1, 2] };
-      let scheduled = [{ id: "failed", booking_date: "2026-09-27", start_time: "14:00", end_time: "15:00", amenity_type_id: 1, amenity_id: 1, amenity_label: "Tennis Court 1", status: "failed", error_message: "Could not hold first slot" }] as Record<string, unknown>[];
+      let scheduled = [{ activity_log: [{ at: "2026-09-26T16:00:00Z", kind: "checked", message: "Availability checked. Still watching for a matching opening." }, { at: "2026-09-26T16:05:00Z", kind: "attempt", message: "Opening found. Attempting to book.", court: "Tennis Court 2", start: "2026-09-27T19:00:00Z", end: "2026-09-27T20:00:00Z" }], id: "failed", booking_date: "2026-09-27", start_time: "14:00", end_time: "15:00", amenity_type_id: 1, amenity_id: 1, amenity_label: "Tennis Court 1", status: "failed", error_message: "Could not hold first slot" }] as Record<string, unknown>[];
       const requests: { path: string; body: Record<string, unknown> }[] = [];
       await page.route("**/api/**", async route => {
         const url = new URL(route.request().url());
@@ -49,6 +49,10 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       await page.getByRole("button", { name: "Save and start watching" }).click();
       await expect(page.getByText("Watching for openings", { exact: true }).first()).toBeVisible();
       expect(requests[1].body.id).toBe("failed");
+      await page.locator(".search-activity summary").click();
+      await expect(page.locator(".search-activity li").first()).toContainText("Opening found. Attempting to book.");
+      await expect(page.locator(".search-activity")).toContainText("Tennis Court 2 · 3:00 PM–4:00 PM");
+      await expect(page.locator(".search-activity li").last()).toContainText("Availability checked");
       await page.screenshot({ path: `outputs/flexible-${viewport.width}.png`, fullPage: true });
       await page.getByRole("button", { name: "Stop searching" }).click();
       await expect(page.getByText("Stopped", { exact: true })).toBeVisible();

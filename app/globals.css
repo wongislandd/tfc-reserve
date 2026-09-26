@@ -255,3 +255,10 @@ button { color: inherit; }
 
 .calendar-legend i.queued { border: 1px solid #d3a543; background: #fff0c2; }
 .court-slot.queued, .court-slot.queued.unavailable, .court-slot.queued.past { border: 1px solid #d3a543; background: #fff0c2; color: #70500b; }
+
+.search-activity { grid-column: 1 / -1; min-width: 0; border-top: 1px solid var(--border); padding-top: 12px; }
+.search-activity summary { cursor: pointer; font-size: 12px; font-weight: 600; padding: 4px 0; }
+.search-activity > p { margin-top: 8px; }
+.search-activity ol { list-style: none; padding: 0; margin: 12px 0 0; max-height: 300px; overflow-y: auto; }
+.search-activity li { display: grid; gap: 3px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12px; overflow-wrap: anywhere; }
+.search-activity time, .activity-detail { color: var(--muted); font-size: 11px; }

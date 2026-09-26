@@ -82,3 +82,9 @@ For Sites, build with `NEXT_PUBLIC_APP_BASE_PATH=/tfc-amenities npm run build`;
 push the matching source commit and package `.openai/` and `dist/` at the archive root. The root
 redirects to the app prefix. Keep the production API URL in runtime configuration.
 The additive private backend migration and worker must be deployed before this UI.
+
+Flexible searches include an expandable Activity history in the auto-book queue.
+The private backend records starts, preference changes, booking attempts and outcomes,
+retry problems, and terminal states. Routine completed checks are summarized at most
+hourly; the latest 100 events are retained per search. Last checked remains the latest
+completed check. History starts when logging is deployed; older events are not backfilled.
