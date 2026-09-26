@@ -7,6 +7,8 @@ const config = JSON.parse(await readFile(configPath, "utf8"));
 // Vinext currently emits an empty compatibility_flags array even when the
 // source configuration omits it, so remove the generated property entirely.
 if (
+  process.env.TFC_DEPLOY_TARGET !== "pocketpowered"
+  &&
   Array.isArray(config.compatibility_flags)
   && config.compatibility_flags.every((flag) => flag === "nodejs_compat")
 ) {

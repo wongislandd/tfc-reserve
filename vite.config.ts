@@ -2,6 +2,8 @@ import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json" with { type: "json" };
 import { sites } from "./build/sites-vite-plugin.ts";
+import { cp } from "node:fs/promises";
+import pocketpoweredConfig from "./wrangler.pocketpowered.json" with { type: "json" };
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
@@ -55,8 +57,16 @@ export default defineConfig(async () => {
       sites(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
-        config: localBindingConfig,
+        config: process.env.TFC_DEPLOY_TARGET === "pocketpowered" ? pocketpoweredConfig : localBindingConfig,
       }),
+      {
+        name: "prefixed-public-assets",
+        apply: "build",
+        async closeBundle() {
+          const basePath = process.env.NEXT_PUBLIC_APP_BASE_PATH;
+          if (basePath) await cp("public", `dist/client${basePath}`, { recursive: true });
+        },
+      },
     ],
   };
 });
