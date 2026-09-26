@@ -79,6 +79,6 @@ supplied as a runtime secret. Only the scoped route in
 retain their routes. Cookies use the application path on this shared domain.
 
 For Sites, build with `NEXT_PUBLIC_APP_BASE_PATH=/tfc-amenities npm run build`;
-push the matching source commit and package the contents of `dist/`. The root
+push the matching source commit and package `.openai/` and `dist/` at the archive root. The root
 redirects to the app prefix. Keep the production API URL in runtime configuration.
 The additive private backend migration and worker must be deployed before this UI.
