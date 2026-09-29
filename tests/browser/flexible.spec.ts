@@ -60,3 +60,21 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     });
   });
 }
+
+for (const width of [1280, 390]) {
+  test(`future search shows its release date at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route("**/api/**", async route => {
+      const path = new URL(route.request().url()).pathname;
+      const body = path.endsWith('/session') ? { authenticated: true, displayName: 'Resident', serviceAvailable: true }
+        : path.endsWith('/reservations/scheduled') ? { results: [{ id: 'future', booking_date: '2026-10-11', start_time: '14:00', end_time: '15:00', amenity_type_id: 1, amenity_id: 1, amenity_label: 'Tennis Court 1', status: 'pending', monitor_state: 'waiting', next_check_at: '2026-10-04T04:00:00Z', flexible_preferences: { version: 1, window_start: '11:00', window_end: '18:00', notice_minutes: 120, preference: 'closest', amenity_ids: [1] } }] } : { results: [] };
+      await route.fulfill({ json: body });
+    });
+    await page.goto(process.env.TFC_BROWSER_BASE_PATH || '/');
+    await page.getByRole('button', { name: /Auto-book queue/ }).filter({ visible: true }).click();
+    await expect(page.getByText('Waiting for booking window', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Checks begin Oct 4, 12:00 AM ET/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Stop searching' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
