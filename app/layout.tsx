@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Geist } from "next/font/google";
 import "./globals.css";
+import { appPath } from "./app-path";
 
 const sans = Geist({ variable: "--font-sans", subsets: ["latin"] });
 
@@ -17,9 +18,9 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: "TFC Amenities",
       description: "Reservations",
-      images: [{ url: `${origin}/og.png`, width: 1536, height: 1024, alt: "TFC Amenities reservations calendar" }],
+      images: [{ url: `${origin}${appPath("/og.png")}`, width: 1536, height: 1024, alt: "TFC Amenities reservations calendar" }],
     },
-    twitter: { card: "summary_large_image", title: "TFC Amenities", description: "Reservations", images: [`${origin}/og.png`] },
+    twitter: { card: "summary_large_image", title: "TFC Amenities", description: "Reservations", images: [`${origin}${appPath("/og.png")}`] },
   };
 }
 

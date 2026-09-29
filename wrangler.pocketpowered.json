@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tfc-amenities-web",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-26",
+  "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "pocketpowered.org/tfc-amenities*", "zone_name": "pocketpowered.org" }],
+  "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } }
+}

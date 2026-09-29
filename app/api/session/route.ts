@@ -1,3 +1,4 @@
+import { COOKIE_PATH } from "../../app-path";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -39,8 +40,8 @@ export async function GET() {
     serviceAvailable,
   });
   if (clearStaleSession) {
-    response.cookies.delete(COOKIE);
-    response.cookies.delete(NAME_COOKIE);
+    response.cookies.set(COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: COOKIE_PATH, maxAge: 0 });
+    response.cookies.set(NAME_COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: COOKIE_PATH, maxAge: 0 });
   }
   return response;
 }
@@ -59,8 +60,8 @@ export async function POST(request: NextRequest) {
     const response = new NextResponse(text, { status: upstream.status, headers: { "Content-Type": "application/json" } });
     if (upstream.ok) {
       const result = JSON.parse(text);
-      response.cookies.set(COOKIE, result.device_id || deviceId, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 90 });
-      response.cookies.set(NAME_COOKIE, result.display_name || "Resident", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 90 });
+      response.cookies.set(COOKIE, result.device_id || deviceId, { httpOnly: true, secure: true, sameSite: "lax", path: COOKIE_PATH, maxAge: 60 * 60 * 24 * 90 });
+      response.cookies.set(NAME_COOKIE, result.display_name || "Resident", { httpOnly: true, secure: true, sameSite: "lax", path: COOKIE_PATH, maxAge: 60 * 60 * 24 * 90 });
     }
     return response;
   } catch {
@@ -75,6 +76,6 @@ export async function DELETE() {
     try { await fetch(`${apiBase()}/logout`, { method: "POST", headers: { "x-tfc-device-id": deviceId } }); } catch { /* Clear the browser session even if upstream is unavailable. */ }
   }
   const response = NextResponse.json({ ok: true });
-  response.cookies.delete(COOKIE); response.cookies.delete(NAME_COOKIE);
+  response.cookies.set(COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: COOKIE_PATH, maxAge: 0 }); response.cookies.set(NAME_COOKIE, "", { httpOnly: true, secure: true, sameSite: "lax", path: COOKIE_PATH, maxAge: 0 });
   return response;
 }
