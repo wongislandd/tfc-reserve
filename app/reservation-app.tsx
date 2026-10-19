@@ -26,7 +26,7 @@ type AmenityType = {
 type Amenity = { id: number; label: string; is_active: boolean };
 type Schedule = Record<string, Record<string, Record<string, SlotStatus>>>;
 type Reservation = { id: number; amenity?: { label?: string }; start_time: string; end_time: string; guests?: number; is_cancelled?: boolean };
-type Scheduled = { activity_log?: SearchEvent[]; next_check_at?: string | null; flexible_preferences?: FlexiblePreferences | null; monitor_state?: string | null; last_checked_at?: string | null; booked_start_time?: string | null; booked_end_time?: string | null; booked_amenity_label?: string | null; booking_intent?: unknown; id: string; booking_date: string; start_time: string; end_time: string; status: string; error_message?: string | null; amenity_type_id: number; amenity_id: number; amenity_label?: string | null; release_time?: string | null; held_reservation_id?: string | null; held_start_time?: string | null; held_end_time?: string | null; recurrence_group_id?: string | null; recurrence_frequency?: Exclude<Recurrence, "once"> | null; recurrence_occurrence_index?: number | null; recurrence_occurrence_count?: number | null };
+type Scheduled = { activity_log?: SearchEvent[]; next_check_at?: string | null; flexible_preferences?: FlexiblePreferences | null; monitor_state?: string | null; last_checked_at?: string | null; booked_start_time?: string | null; booked_end_time?: string | null; booked_amenity_label?: string | null; booking_intent?: unknown; confirmed_reservation_id?: string | null; id: string; booking_date: string; start_time: string; end_time: string; status: string; error_message?: string | null; amenity_type_id: number; amenity_id: number; amenity_label?: string | null; release_time?: string | null; held_reservation_id?: string | null; held_start_time?: string | null; held_end_time?: string | null; recurrence_group_id?: string | null; recurrence_frequency?: Exclude<Recurrence, "once"> | null; recurrence_occurrence_index?: number | null; recurrence_occurrence_count?: number | null };
 
 const api = async (path: string, init?: RequestInit) => {
   const response = await fetch(appPath(`/api/reservations/${path}`), init);
@@ -265,7 +265,14 @@ function Dashboard({ displayName, onSignOut }: { displayName: string; onSignOut:
         {message && <div className={`notice ${message.error ? "error" : ""}`} role="status">{message.text}</div>}
         {view === "book" && <BookView types={types} scheduled={scheduled} loading={loading} onBooked={async (text) => { setMessage({ text }); await refresh(); }} />}
         {view === "reservations" && <ReservationsView upcoming={upcoming} past={past} loading={loading} onCancel={async (id) => { await api(`cancel?id=${id}`, { method: "POST" }); setMessage({ text: "Reservation cancelled." }); await refresh(); }} />}
-        {view === "scheduled" && <ScheduledView items={scheduled} types={types} amenityLabels={amenityLabels} loading={loading} onUpdated={refresh} onCancel={async (id, scope) => { await api(`cancel-scheduled?id=${id}${scope === "series" ? "&scope=series" : ""}`, { method: "POST" }); setMessage({ text: scope === "series" ? "Remaining series bookings removed." : "Auto-booking removed." }); await refresh(); }} />}
+        {view === "scheduled" && <ScheduledView items={scheduled} types={types} amenityLabels={amenityLabels} loading={loading} onUpdated={refresh} onResume={async (item) => {
+          if (!item.flexible_preferences || !candidateTimes(item, item.flexible_preferences, Date.now()).length) throw new Error("All acceptable starts have passed their notice cutoff.");
+          await api("update-monitor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, flexible_preferences: item.flexible_preferences }) });
+          setMessage({ text: "Search resumed with your saved preferences." }); await refresh();
+        }} onCancel={async (id, scope, action) => {
+          await api(`cancel-scheduled?id=${encodeURIComponent(id)}${scope === "series" ? "&scope=series" : ""}${action === "remove" ? "&action=remove" : ""}`, { method: "POST" });
+          setMessage({ text: action === "stop" ? "Search stopped. Existing reservations are unchanged." : action === "remove" ? "Search removed. Existing reservations are unchanged." : scope === "series" ? "Remaining series bookings removed." : "Auto-booking removed." }); await refresh();
+        }} />}
       </div>
     </section>
     <nav className="mobile-nav" aria-label="Mobile navigation">{nav.map((item) => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}>{item.symbol}<br />{item.label.replace(" an amenity", "")}</button>)}</nav>
@@ -442,23 +449,40 @@ function ReservationCard({ item, onCancel }: { item: Reservation; onCancel?: () 
   return <article className="card reservation-card"><div className="date-block"><span>{date.toLocaleDateString("en-US", { month: "short" })}</span><strong>{date.getDate()}</strong></div><div><h3>{item.amenity?.label || "Amenity reservation"}</h3><p>{prettyTime(item.start_time)}–{prettyTime(item.end_time)}{item.guests ? ` · ${item.guests} guest${item.guests > 1 ? "s" : ""}` : ""}</p></div>{onCancel ? <button className="danger-button" onClick={onCancel}>Cancel</button> : <span className="badge">Completed</span>}</article>;
 }
 
-function ScheduledView({ items, types, amenityLabels, loading, onUpdated, onCancel }: { items: Scheduled[]; types: AmenityType[]; amenityLabels: Record<string, string>; loading: boolean; onUpdated: () => Promise<void>; onCancel: (id: string, scope: "occurrence" | "series") => Promise<void> }) {
+function ScheduledView({ items, types, amenityLabels, loading, onUpdated, onResume, onCancel }: { items: Scheduled[]; types: AmenityType[]; amenityLabels: Record<string, string>; loading: boolean; onUpdated: () => Promise<void>; onResume: (item: Scheduled) => Promise<void>; onCancel: (id: string, scope: "occurrence" | "series", action?: "stop" | "remove") => Promise<void> }) {
   const typeLabels = Object.fromEntries(types.map((type) => [type.id, type.name]));
   const [editing, setEditing] = useState<Scheduled | null>(null);
   const [actionError, setActionError] = useState("");
   const [working, setWorking] = useState<string | null>(null);
-  async function stop(id: string, scope: "occurrence" | "series") {
+  const actionsDisabled = working !== null || editing !== null;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  async function stop(id: string, scope: "occurrence" | "series", action?: "stop" | "remove") {
     setWorking(id); setActionError("");
-    try { await onCancel(id, scope); } catch (error) { setActionError(error instanceof Error ? error.message : "Could not stop this search."); }
+    try { await onCancel(id, scope, action); } catch (error) { setActionError(error instanceof Error ? error.message : "Could not update this search."); }
+    finally { setWorking(null); }
+  }
+  async function resume(item: Scheduled) {
+    setWorking(item.id); setActionError("");
+    try { await onResume(item); } catch (error) { setActionError(error instanceof Error ? error.message : "Could not resume this search."); }
     finally { setWorking(null); }
   }
   return <>
     <div className="page-heading"><div><span className="section-label">Automation</span><h1>Scheduled bookings</h1></div><p>Upcoming auto-bookings and searches watching for openings.</p></div>
     {actionError && <div className="notice error" role="alert">{actionError}</div>}
-    {editing && <MonitorEditor key={editing.id} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await onUpdated(); }} />}
+    {editing && <MonitorEditor key={editing.id} item={editing} onClose={() => setEditing(null)} onSaved={async () => { await onUpdated(); setEditing(null); }} />}
     {loading && !items.length ? <p>Loading…</p> : items.length ? <div className="reservation-grid">{sortScheduledBookings(items).map((item) => {
       const date = new Date(`${item.booking_date}T12:00:00`);
       const amenityLabel = item.amenity_label || amenityLabels[amenityKey(item.amenity_type_id, item.amenity_id)] || typeLabels[item.amenity_type_id] || "Amenity reservation";
+      const stopped = Boolean(item.flexible_preferences && item.status === "failed" && item.monitor_state === "stopped");
+      const hasReservation = Boolean(item.held_reservation_id || item.booking_intent || item.confirmed_reservation_id);
+      let canResume = false;
+      if (stopped && !hasReservation && item.flexible_preferences) {
+        try { canResume = candidateTimes(item, item.flexible_preferences, now).length > 0; } catch { /* Invalid saved preferences can still be edited or removed. */ }
+      }
       return <article className="card reservation-card" key={item.id}>
         <div className="date-block"><span>{date.toLocaleDateString("en-US", { month: "short" })}</span><strong>{date.getDate()}</strong></div>
         <div>
@@ -471,9 +495,11 @@ function ScheduledView({ items, types, amenityLabels, loading, onUpdated, onCanc
           <p>{item.flexible_preferences ? "Preferred: " : ""}{prettyTime(item.start_time)}–{prettyTime(item.end_time)}{item.held_reservation_id ? <><br />Holding {prettyTime(item.held_start_time || item.start_time)}–{prettyTime(item.held_end_time || plusThirty(item.start_time))} while the full range opens.</> : item.error_message ? <><br />{item.error_message}</> : null}</p>
         </div>
         <div className="card-actions">
-          {item.status === "pending" ? <><button className="danger-button" disabled={working === item.id} onClick={() => void stop(item.id, "occurrence")}>{item.flexible_preferences ? "Stop searching" : "Remove"}</button>{item.recurrence_group_id && !item.flexible_preferences && <button className="quiet-button" disabled={working === item.id} onClick={() => { if (window.confirm("Remove every remaining booking in this series?")) void stop(item.id, "series"); }}>Remove series</button>}</> : !item.flexible_preferences && <span className={`badge ${item.status}`}>{item.status}</span>}
-          {item.status !== "pending" && !item.flexible_preferences && <button className="danger-button" disabled={working !== null} title="Remove this queue entry. Confirmed reservations remain unchanged." onClick={() => void stop(item.id, "occurrence")}>Remove</button>}
-          {item.status !== "success" && !item.held_reservation_id && !item.booking_intent && (item.flexible_preferences || item.status === "failed") && item.booking_date >= newYorkDate() && <button className="quiet-button" onClick={() => setEditing(item)}>{item.flexible_preferences ? "Edit search" : "Find another time"}</button>}
+          {item.status === "pending" ? <><button className="danger-button" disabled={actionsDisabled} onClick={() => void stop(item.id, "occurrence", item.flexible_preferences ? "stop" : undefined)}>{item.flexible_preferences ? "Stop searching" : "Remove"}</button>{item.recurrence_group_id && !item.flexible_preferences && <button className="quiet-button" disabled={actionsDisabled} onClick={() => { if (window.confirm("Remove every remaining booking in this series?")) void stop(item.id, "series"); }}>Remove series</button>}</> : !item.flexible_preferences && <span className={`badge ${item.status}`}>{item.status}</span>}
+          {canResume && <button className="quiet-button" disabled={actionsDisabled} onClick={() => void resume(item)}>Resume search</button>}
+          {stopped && <button className="danger-button" disabled={actionsDisabled || hasReservation} title={hasReservation ? "Check your reservations before removing this search." : "Remove this stopped search. Confirmed reservations remain unchanged."} onClick={() => void stop(item.id, "occurrence", "remove")}>Remove</button>}
+          {item.status !== "pending" && !item.flexible_preferences && <button className="danger-button" disabled={actionsDisabled} title="Remove this queue entry. Confirmed reservations remain unchanged." onClick={() => void stop(item.id, "occurrence")}>Remove</button>}
+          {item.status !== "success" && !hasReservation && (item.flexible_preferences || item.status === "failed") && item.booking_date >= newYorkDate() && <button className="quiet-button" disabled={actionsDisabled} onClick={() => setEditing(item)}>{item.flexible_preferences ? "Edit search" : "Find another time"}</button>}
         </div>
         {item.flexible_preferences && <SearchActivity events={item.activity_log} />}
       </article>;

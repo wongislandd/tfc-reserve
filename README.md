@@ -59,6 +59,10 @@ eligible after the preferred time passes.
 
 In **Auto-book queue**, use **Find another time** on a failed request to turn it
 into a search. **Edit search** and **Stop searching** affect that date only.
+Stopped searches offer **Resume search** while acceptable start times remain,
+using the saved preferences, and **Remove** to clear that occurrence from the queue.
+Resuming a future date waits for its booking window to open. Removing a stopped
+search also removes its activity history and leaves confirmed reservations unchanged.
 Recurring requests use the same preferences independently for each date. Existing
 failed bookings are not automatically reactivated.
 
